@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Service Laptop</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h2>Form Input Service Laptop</h2>
+
+  <div class="form-group">
+    <label for="nota">Nomor Nota *</label>
+    <input type="text" id="nota" class="readonly" readonly>
+    <button type="button" onclick="generateNota()">Buat Nomor Nota</button>
+  </div>
+
+  <div class="form-group">
+    <label for="nama">Nama Pelanggan *</label>
+    <input type="text" id="nama" required>
+  </div>
+
+  <div class="form-group">
+    <label for="kontak">Kontak (HP/Email) *</label>
+    <input type="text" id="kontak" required>
+  </div>
+
+  <div class="form-group">
+    <label for="tanggal_masuk">Tanggal Masuk *</label>
+    <input type="date" id="tanggal_masuk" required>
+  </div>
+
+  <div class="form-group">
+    <label for="seri_laptop">Seri / Model Laptop *</label>
+    <input type="text" id="seri_laptop" placeholder="Contoh: Lenovo T480" required>
+  </div>
+
+  <div class="form-group">
+    <label for="kelengkapan">Kelengkapan *</label>
+    <textarea id="kelengkapan" rows="2" placeholder="Adaptor, tas, CD" required></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="kondisi_fisik">Kondisi Fisik *</label>
+    <textarea id="kondisi_fisik" rows="2" placeholder="Casing retak, baterai kembung" required></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="keluhan">Keluhan Utama *</label>
+    <textarea id="keluhan" rows="3" placeholder="Laptop mati total, tidak bisa charge" required></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="tindakan">Tindakan</label>
+    <textarea id="tindakan" rows="2" placeholder="Ganti IC charger, reballing"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="biaya">Estimasi Biaya (Rp)</label>
+    <input type="number" id="biaya" min="0" placeholder="0">
+  </div>
+
+  <div class="form-group">
+    <label for="tanggal_ambil">Estimasi Tanggal Ambil</label>
+    <input type="date" id="tanggal_ambil">
+  </div>
+
+  <div class="form-group">
+    <label for="teknisi">Teknisi</label>
+    <input type="text" id="teknisi" placeholder="Nama teknisi">
+  </div>
+
+  <button type="button" onclick="submitData()">Simpan ke Google Sheet</button>
+  <div id="status"></div>
+
+  <script>
+    // 🔑 GANTI DENGAN WEB APP URL KAMU
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby422Qhj6-jYzZe7mdAxLyI4c2dQwMhhV4_L3AhCegHM5e-CxZ1SZSBYwqpp8A_fTKMeA/exec";
+
+    document.getElementById('tanggal_masuk').valueAsDate = new Date();
+
+    function pad(num) { return String(num).padStart(2, '0'); }
+
+    function generateNotaPrefix() {
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = pad(now.getMonth() + 1);
+      const dd = pad(now.getDate());
+      return `${yy}${mm}${dd}`;
+    }
+
+    function getNextCounter(prefix) {
+      const key = `service_counter_${prefix}`;
+      let count = parseInt(localStorage.getItem(key) || '0') + 1;
+      localStorage.setItem(key, String(count));
+      return String(count).padStart(3, '0');
+    }
+
+    function generateNota() {
+      const prefix = generateNotaPrefix();
+      const counter = getNextCounter(prefix);
+      document.getElementById('nota').value = `${prefix}${counter}`;
+    }
+
+    async function submitGagal(msg = "Gagal mengirim data.") {
+      document.getElementById('status').innerHTML = `<span style="color:red;">❌ ${msg}</span>`;
+    }
+
+    async function submitData() {
+      const required = ['nota','nama','kontak','tanggal_masuk','seri_laptop','kelengkapan','kondisi_fisik','keluhan'];
+      for (const f of required) {
+        if (!document.getElementById(f).value.trim()) {
+          submitGagal("Semua field bertanda * wajib diisi!");
+          return;
+        }
+      }
+
+      const data = {
+        nota: document.getElementById('nota').value,
+        nama: document.getElementById('nama').value,
+        kontak: document.getElementById('kontak').value,
+        tanggal_masuk: document.getElementById('tanggal_masuk').value,
+        seri_laptop: document.getElementById('seri_laptop').value,
+        kelengkapan: document.getElementById('kelengkapan').value,
+        kondisi_fisik: document.getElementById('kondisi_fisik').value,
+        keluhan: document.getElementById('keluhan').value,
+        tindakan: document.getElementById('tindakan').value || '',
+        biaya: document.getElementById('biaya').value || '',
+        tanggal_ambil: document.getElementById('tanggal_ambil').value || '',
+        teknisi: document.getElementById('teknisi').value || ''
+      };
+
+      document.getElementById('status').innerHTML = "Mengirim data…";
+
+      try {
+        const formData = new FormData();
+        for (const key in data) {
+          formData.append(key, data[key]);
+        }
+
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: formData
+        });
+
+        document.getElementById('status').innerHTML = '<span style="color:green;">✅ Data berhasil disimpan!</span>';
+
+        // Reset
+        ['nama','kontak','seri_laptop','kelengkapan','kondisi_fisik','keluhan','tindakan','biaya','teknisi'].forEach(id => {
+          document.getElementById(id).value = '';
+        });
+        document.getElementById('tanggal_ambil').value = '';
+        document.getElementById('nota').value = '';
+
+      } catch (e) {
+        console.error(e);
+        submitGagal("Periksa koneksi internet atau Web App URL.");
+      }
+    }
+  </script>
+</body>
+</html>
